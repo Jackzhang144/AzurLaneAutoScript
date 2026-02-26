@@ -9,47 +9,17 @@ from uiautomator2.xpath import XPath, XPathSelector
 import module.config.server as server
 from module.base.timer import Timer
 from module.base.utils import color_similarity_2d, crop, random_rectangle_point
+from module.exception import GameNotRunningError
 from module.handler.assets import *
 from module.logger import logger
 from module.map.assets import *
-from module.ocr.ocr import Ocr
 from module.ui.assets import *
 from module.ui.page import page_campaign_menu
 from module.ui.ui import UI
 
 
 class LoginHandler(UI):
-    _server_unavailable_check_timer = Timer(5, count=1)
     _server_unavailable_login_check_threshold = 8
-
-    def _is_server_unavailable(self) -> bool:
-        """
-        Detect the login page message `server unavailable` by OCR.
-        This allows Alas to wait and retry instead of fast looping into timeout.
-        """
-        if not self._server_unavailable_check_timer.reached():
-            return False
-
-        # Middle message bar on login page.
-        ocr_area = (430, 300, 850, 390)
-        result = Ocr(
-            ocr_area,
-            lang='cnocr',
-            letter=(255, 255, 255),
-            threshold=160,
-            name='SERVER_UNAVAILABLE',
-        ).ocr(self.device.image)
-        self._server_unavailable_check_timer.reset()
-
-        text = str(result).replace(' ', '').replace('\n', '')
-        keywords = [
-            '服务器不可用',
-            '伺服器不可用',
-            'serverunavailable',
-            '利用不可',
-        ]
-        text_lower = text.lower()
-        return any(keyword in text or keyword in text_lower for keyword in keywords)
 
     def _get_server_unavailable_retry_interval(self) -> int:
         try:
@@ -103,15 +73,17 @@ class LoginHandler(UI):
                     logger.info('Login success')
                     login_success = True
                 if login_check_click_count >= self._server_unavailable_login_check_threshold:
+                    retry_interval = self._get_server_unavailable_retry_interval()
                     logger.warning(
                         f'LOGIN_CHECK clicked {login_check_click_count} times without entering main page, '
-                        f'waiting before retry'
+                        f'wait {retry_interval}s then restart app'
                     )
                     self.device.click_record_clear()
                     self.device.stuck_record_clear()
-                    self.device.sleep(self._get_server_unavailable_retry_interval())
-                    login_check_click_count = 0
-                    continue
+                    self.device.sleep(retry_interval)
+                    raise GameNotRunningError(
+                        'Login stuck at LOGIN_CHECK repeatedly, restart after backoff'
+                    )
             if self.appear(ANDROID_NO_RESPOND, offset=(30, 30), interval=5):
                 logger.warning('Emulator no respond')
                 self.device.click_record_add(ANDROID_NO_RESPOND)
@@ -124,13 +96,6 @@ class LoginHandler(UI):
                 continue
             if self.appear(EVENT_LIST_CHECK, offset=(30, 30), interval=5):
                 self.device.click(BACK_ARROW)
-                continue
-            if self._is_server_unavailable():
-                logger.warning('Detected "server unavailable" on login page, waiting before retry')
-                self.device.click_record_clear()
-                self.device.stuck_record_clear()
-                self.device.sleep(self._get_server_unavailable_retry_interval())
-                login_check_click_count = 0
                 continue
             # Updates and maintenance
             if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=5):
