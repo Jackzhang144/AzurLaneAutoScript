@@ -20,7 +20,6 @@ from module.ui.ui import UI
 
 class LoginHandler(UI):
     _server_unavailable_check_timer = Timer(5, count=1)
-    _server_unavailable_retry_interval = 120
 
     def _is_server_unavailable(self) -> bool:
         """
@@ -50,6 +49,13 @@ class LoginHandler(UI):
         ]
         text_lower = text.lower()
         return any(keyword in text or keyword in text_lower for keyword in keywords)
+
+    def _get_server_unavailable_retry_interval(self) -> int:
+        try:
+            interval = int(getattr(self.config, 'Emulator_ServerUnavailableRetryInterval', 300))
+        except Exception:
+            interval = 300
+        return max(10, interval)
 
     def _handle_app_login(self):
         """
@@ -110,7 +116,7 @@ class LoginHandler(UI):
                 logger.warning('Detected "server unavailable" on login page, waiting before retry')
                 self.device.click_record_clear()
                 self.device.stuck_record_clear()
-                self.device.sleep(self._server_unavailable_retry_interval)
+                self.device.sleep(self._get_server_unavailable_retry_interval())
                 continue
             # Updates and maintenance
             if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=5):

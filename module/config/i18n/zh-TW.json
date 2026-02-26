@@ -450,6 +450,10 @@
     "AdbRestart": {
       "name": "在檢測不到設備的時候嘗試重啟adb",
       "help": ""
+    },
+    "ServerUnavailableRetryInterval": {
+      "name": "停服重試間隔（秒）",
+      "help": "檢測到「伺服器不可用」時，等待該時長後再嘗試登入"
     }
   },
   "EmulatorInfo": {

@@ -450,6 +450,10 @@
     "AdbRestart": {
       "name": "Try to restart adb when no device found",
       "help": ""
+    },
+    "ServerUnavailableRetryInterval": {
+      "name": "Server Unavailable Retry Interval (s)",
+      "help": "When \"server unavailable\" is detected, wait this many seconds before retrying login"
     }
   },
   "EmulatorInfo": {
