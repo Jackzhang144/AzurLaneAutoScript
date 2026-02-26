@@ -12,12 +12,45 @@ from module.base.utils import color_similarity_2d, crop, random_rectangle_point
 from module.handler.assets import *
 from module.logger import logger
 from module.map.assets import *
+from module.ocr.ocr import Ocr
 from module.ui.assets import *
 from module.ui.page import page_campaign_menu
 from module.ui.ui import UI
 
 
 class LoginHandler(UI):
+    _server_unavailable_check_timer = Timer(5, count=1)
+    _server_unavailable_retry_interval = 120
+
+    def _is_server_unavailable(self) -> bool:
+        """
+        Detect the login page message `server unavailable` by OCR.
+        This allows Alas to wait and retry instead of fast looping into timeout.
+        """
+        if not self._server_unavailable_check_timer.reached():
+            return False
+
+        # Middle message bar on login page.
+        ocr_area = (430, 300, 850, 390)
+        result = Ocr(
+            ocr_area,
+            lang='cnocr',
+            letter=(255, 255, 255),
+            threshold=160,
+            name='SERVER_UNAVAILABLE',
+        ).ocr(self.device.image)
+        self._server_unavailable_check_timer.reset()
+
+        text = str(result).replace(' ', '').replace('\n', '')
+        keywords = [
+            '服务器不可用',
+            '伺服器不可用',
+            'serverunavailable',
+            '利用不可',
+        ]
+        text_lower = text.lower()
+        return any(keyword in text or keyword in text_lower for keyword in keywords)
+
     def _handle_app_login(self):
         """
         Pages:
@@ -72,6 +105,12 @@ class LoginHandler(UI):
                 continue
             if self.appear(EVENT_LIST_CHECK, offset=(30, 30), interval=5):
                 self.device.click(BACK_ARROW)
+                continue
+            if self._is_server_unavailable():
+                logger.warning('Detected "server unavailable" on login page, waiting before retry')
+                self.device.click_record_clear()
+                self.device.stuck_record_clear()
+                self.device.sleep(self._server_unavailable_retry_interval)
                 continue
             # Updates and maintenance
             if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=5):
