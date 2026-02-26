@@ -20,6 +20,7 @@ from module.ui.ui import UI
 
 class LoginHandler(UI):
     _server_unavailable_check_timer = Timer(5, count=1)
+    _server_unavailable_login_check_threshold = 8
 
     def _is_server_unavailable(self) -> bool:
         """
@@ -73,6 +74,7 @@ class LoginHandler(UI):
         confirm_timer = Timer(1.5, count=4).start()
         orientation_timer = Timer(5)
         login_success = False
+        login_check_click_count = 0
         self.device.stuck_record_clear()
         self.device.click_record_clear()
 
@@ -96,9 +98,20 @@ class LoginHandler(UI):
             # Login
             if self.match_template_color(LOGIN_CHECK, offset=(30, 30), interval=5):
                 self.device.click(LOGIN_CHECK)
+                login_check_click_count += 1
                 if not login_success:
                     logger.info('Login success')
                     login_success = True
+                if login_check_click_count >= self._server_unavailable_login_check_threshold:
+                    logger.warning(
+                        f'LOGIN_CHECK clicked {login_check_click_count} times without entering main page, '
+                        f'waiting before retry'
+                    )
+                    self.device.click_record_clear()
+                    self.device.stuck_record_clear()
+                    self.device.sleep(self._get_server_unavailable_retry_interval())
+                    login_check_click_count = 0
+                    continue
             if self.appear(ANDROID_NO_RESPOND, offset=(30, 30), interval=5):
                 logger.warning('Emulator no respond')
                 self.device.click_record_add(ANDROID_NO_RESPOND)
@@ -117,6 +130,7 @@ class LoginHandler(UI):
                 self.device.click_record_clear()
                 self.device.stuck_record_clear()
                 self.device.sleep(self._get_server_unavailable_retry_interval())
+                login_check_click_count = 0
                 continue
             # Updates and maintenance
             if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=5):
