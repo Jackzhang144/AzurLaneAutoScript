@@ -57,6 +57,10 @@ class LoginHandler(UI):
 
             self.device.screenshot()
 
+            # Android system popup: "<app> keeps stopping" / "屡次停止运行"
+            if self.handle_android_app_crash_popup():
+                continue
+
             # End
             if self.is_in_main():
                 if confirm_timer.reached():

@@ -91,6 +91,47 @@ class InfoHandler(ModuleBase):
     """
     _popup_offset = (3, 30)
 
+    def handle_android_app_crash_popup(self):
+        """
+        Handle Android system crash/ANR popups like:
+        - "XXX keeps stopping" / "XXX isn't responding"
+        - "XXX 屡次停止运行"
+
+        Returns:
+            bool: If handled.
+        """
+        timer = self.get_interval_timer('ANDROID_APP_CRASH_POPUP', interval=1)
+        if not timer.reached():
+            return False
+        timer.reset()
+
+        try:
+            self.device.dump_hierarchy()
+        except Exception:
+            return False
+
+        popup_title = self.device.xpath_to_button(
+            '//*[contains(@text,"停止运行") or contains(@text,"屡次停止运行") or '
+            'contains(@text,"无响应") or contains(@text,"keeps stopping") or '
+            'contains(@text,"not responding") or contains(@text,"has stopped") or '
+            'contains(@content-desc,"停止运行") or contains(@content-desc,"屡次停止运行") or '
+            'contains(@content-desc,"无响应") or contains(@content-desc,"keeps stopping") or '
+            'contains(@content-desc,"not responding") or contains(@content-desc,"has stopped")]'
+        )
+        close_app = self.device.xpath_to_button(
+            '//*[contains(@text,"关闭应用") or contains(@text,"Close app") or '
+            'contains(@content-desc,"关闭应用") or contains(@content-desc,"Close app")]'
+        )
+
+        if popup_title and close_app:
+            logger.warning(f'Android app crash popup detected: {popup_title}')
+            self.device.click(close_app, control_check=False)
+            self.device.stuck_record_clear()
+            self.device.click_record_clear()
+            return True
+
+        return False
+
     def handle_popup_confirm(self, name='', offset=None, interval=2):
         if offset is None:
             offset = self._popup_offset
