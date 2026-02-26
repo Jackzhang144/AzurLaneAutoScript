@@ -9,7 +9,7 @@ from uiautomator2.xpath import XPath, XPathSelector
 import module.config.server as server
 from module.base.timer import Timer
 from module.base.utils import color_similarity_2d, crop, random_rectangle_point
-from module.exception import GameNotRunningError
+from module.exception import GameNotRunningError, RetryTaskNow
 from module.handler.assets import *
 from module.logger import logger
 from module.map.assets import *
@@ -81,7 +81,7 @@ class LoginHandler(UI):
                     self.device.click_record_clear()
                     self.device.stuck_record_clear()
                     self.device.sleep(retry_interval)
-                    raise GameNotRunningError(
+                    raise RetryTaskNow(
                         'Login stuck at LOGIN_CHECK repeatedly, restart after backoff'
                     )
             if self.appear(ANDROID_NO_RESPOND, offset=(30, 30), interval=5):

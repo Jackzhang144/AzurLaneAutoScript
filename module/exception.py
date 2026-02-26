@@ -57,6 +57,11 @@ class GamePageUnknownError(Exception):
     pass
 
 
+class RetryTaskNow(Exception):
+    # A recoverable state that should retry immediately without counting task failure.
+    pass
+
+
 class RequestHumanTakeover(Exception):
     # Request human takeover
     # Alas is unable to handle such error, probably because of wrong settings.

@@ -70,6 +70,10 @@ class AzurLaneAutoScript:
             return True
         except TaskEnd:
             return True
+        except RetryTaskNow as e:
+            logger.warning(e)
+            self.config.task_call('Restart')
+            return True
         except GameNotRunningError as e:
             logger.warning(e)
             self.config.task_call('Restart')
