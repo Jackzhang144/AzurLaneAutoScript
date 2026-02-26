@@ -62,8 +62,12 @@ class Scroll:
             float: 0 to 1.
         """
         mask = self.match_color(main)
-        middle = np.mean(np.where(mask)[0])
+        points = np.where(mask)[0]
+        if not len(points) or self.total <= self.length:
+            logger.attr(self.name, f'0.00 (nan-{self.length / 2})/({self.total}-{self.length})')
+            return 0.0
 
+        middle = np.mean(points)
         position = (middle - self.length / 2) / (self.total - self.length)
         position = position if position > 0 else 0.0
         position = position if position < 1 else 1.0
@@ -135,6 +139,9 @@ class Scroll:
         self.drag_interval.clear()
         self.drag_timeout.reset()
         dragged = 0
+        max_drag = 6
+        drag_stuck_count = 0
+        last_drag_position = None
         if position <= self.edge_threshold:
             random_range = np.subtract(0, self.edge_add)
         if position >= 1 - self.edge_threshold:
@@ -159,6 +166,19 @@ class Scroll:
                     continue
 
             if self.drag_interval.reached():
+                if dragged >= max_drag:
+                    logger.warning(f'{self.name} drag reached max attempts ({max_drag}), stop setting')
+                    break
+
+                if last_drag_position is not None and abs(current - last_drag_position) < 0.003:
+                    drag_stuck_count += 1
+                    if drag_stuck_count >= 3:
+                        logger.warning(f'{self.name} has no progress after {drag_stuck_count} drags, stop setting')
+                        break
+                else:
+                    drag_stuck_count = 0
+                last_drag_position = current
+
                 p1 = random_rectangle_point(self.position_to_screen(current), n=1)
                 p2 = random_rectangle_point(self.position_to_screen(position, random_range=random_range), n=1)
                 main.device.swipe(p1, p2, name=self.name, distance_check=distance_check)
