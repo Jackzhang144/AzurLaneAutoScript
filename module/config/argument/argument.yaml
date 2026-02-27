@@ -55,6 +55,7 @@ Emulator:
     ]
   ScreenshotDedithering: false
   AdbRestart: false
+  ServerUnavailableRetryInterval: 300
 EmulatorInfo:
   Emulator:
     value: auto

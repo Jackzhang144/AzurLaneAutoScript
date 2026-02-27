@@ -522,6 +522,8 @@ class UI(InfoHandler):
             return True
         if self.appear_then_click(AUTO_SEARCH_REWARD, offset=(50, 50), interval=3):
             return True
+        if self.handle_android_app_crash_popup():
+            return True
         if self.appear(WITHDRAW, offset=(30, 30), interval=3):
             # Poor wait here, to handle a game client bug after the game patch in 2022-04-07
             # To re-produce this game bug (100% success):

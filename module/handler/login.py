@@ -9,6 +9,7 @@ from uiautomator2.xpath import XPath, XPathSelector
 import module.config.server as server
 from module.base.timer import Timer
 from module.base.utils import color_similarity_2d, crop, random_rectangle_point
+from module.exception import GameNotRunningError, RetryTaskNow
 from module.handler.assets import *
 from module.logger import logger
 from module.map.assets import *
@@ -18,6 +19,15 @@ from module.ui.ui import UI
 
 
 class LoginHandler(UI):
+    _server_unavailable_login_check_threshold = 8
+
+    def _get_server_unavailable_retry_interval(self) -> int:
+        try:
+            interval = int(getattr(self.config, 'Emulator_ServerUnavailableRetryInterval', 300))
+        except Exception:
+            interval = 300
+        return max(10, interval)
+
     def _handle_app_login(self):
         """
         Pages:
@@ -34,6 +44,7 @@ class LoginHandler(UI):
         confirm_timer = Timer(1.5, count=4).start()
         orientation_timer = Timer(5)
         login_success = False
+        login_check_click_count = 0
         self.device.stuck_record_clear()
         self.device.click_record_clear()
 
@@ -46,6 +57,10 @@ class LoginHandler(UI):
 
             self.device.screenshot()
 
+            # Android system popup: "<app> keeps stopping" / "屡次停止运行"
+            if self.handle_android_app_crash_popup():
+                continue
+
             # End
             if self.is_in_main():
                 if confirm_timer.reached():
@@ -57,9 +72,22 @@ class LoginHandler(UI):
             # Login
             if self.match_template_color(LOGIN_CHECK, offset=(30, 30), interval=5):
                 self.device.click(LOGIN_CHECK)
+                login_check_click_count += 1
                 if not login_success:
                     logger.info('Login success')
                     login_success = True
+                if login_check_click_count >= self._server_unavailable_login_check_threshold:
+                    retry_interval = self._get_server_unavailable_retry_interval()
+                    logger.warning(
+                        f'LOGIN_CHECK clicked {login_check_click_count} times without entering main page, '
+                        f'wait {retry_interval}s then restart app'
+                    )
+                    self.device.click_record_clear()
+                    self.device.stuck_record_clear()
+                    self.device.sleep(retry_interval)
+                    raise RetryTaskNow(
+                        'Login stuck at LOGIN_CHECK repeatedly, restart after backoff'
+                    )
             if self.appear(ANDROID_NO_RESPOND, offset=(30, 30), interval=5):
                 logger.warning('Emulator no respond')
                 self.device.click_record_add(ANDROID_NO_RESPOND)
