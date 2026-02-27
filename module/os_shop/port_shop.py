@@ -130,9 +130,15 @@ class PortShop(OSStatus, OSShopUI, Selector, MapEventHandler):
             logger.hr(f'OpsiShop scan {i}')
             self.os_shop_side_navbar_ensure(upper=i + 1)
             pre_pos, cur_pos = self.init_slider()
+            max_pos = cur_pos
+            no_progress = 0
+            progress_threshold = 0.01
+            no_progress_limit = 2
 
             while True:
                 pre_pos = self.pre_scroll(pre_pos, cur_pos)
+                cur_pos = pre_pos
+                max_pos = max(max_pos, cur_pos)
                 _items = self.os_shop_get_items(i, cur_pos)
 
                 for _ in range(2):
@@ -151,8 +157,23 @@ class PortShop(OSStatus, OSShopUI, Selector, MapEventHandler):
                     logger.info('OS shop reach bottom, stop')
                     break
                 else:
+                    # Scroll retry has its own no-progress guard below.
+                    self.device.click_record.clear()
                     OS_SHOP_SCROLL.next_page(main=self, page=0.5, skip_first_screenshot=False)
-                    cur_pos = OS_SHOP_SCROLL.cal_position(main=self)
+                    next_pos = OS_SHOP_SCROLL.cal_position(main=self)
+                    if next_pos > max_pos + progress_threshold:
+                        max_pos = next_pos
+                        no_progress = 0
+                    else:
+                        no_progress += 1
+                        logger.warning(
+                            f'OS shop scroll has no forward progress ({no_progress}/{no_progress_limit}), '
+                            f'pos {next_pos:.2f}, max {max_pos:.2f}'
+                        )
+                        if no_progress >= no_progress_limit:
+                            logger.warning('OS shop scroll stuck, stop scanning current shop')
+                            break
+                    cur_pos = next_pos
                     continue
             self.device.click_record.clear()
 
